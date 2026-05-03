@@ -1,4 +1,4 @@
-function [U1,U2] = CFCMcck(data, cluster_n, num ,respimage,M)
+function [U1,U2] = CFCMcck(data, cluster_n, num ,respimage,M, params)
 
 C = cluster_n;
 P = num;
@@ -34,6 +34,16 @@ for a = 1:P-1
     V{a+1} = V{P+1};
 end
 
+if nargin < 6 || isempty(params)
+    params = struct();
+end
+if ~isfield(params, "lambda_cont")
+    params.lambda_cont = 0.12;
+end
+if ~isfield(params, "lambda_branch")
+    params.lambda_branch = 0.02;
+end
+
 SSIGMA = 0;
 for iteration = 1:100
     I = respimage;
@@ -50,6 +60,7 @@ for iteration = 1:100
         else
             aa = G1;
         end
+        regTerm = params.lambda_cont * aa + params.lambda_branch;
 
         % Aggregate memberships from other subspaces.
         otherU = zeros(C,N);
@@ -59,8 +70,8 @@ for iteration = 1:100
             end
         end
 
-        temp2Mat = (P - 1) * aa;
-        temp1Mat = aa .* otherU;
+        temp2Mat = (P - 1) * regTerm;
+        temp1Mat = regTerm .* otherU;
 
         % Distance matrix: C x N.
         Xii = X{ii}';
@@ -74,7 +85,7 @@ for iteration = 1:100
         temp3Mat = dist2 .* sum(1 ./ dist2, 1);
 
         temp4Base = sum(otherU,1);
-        temp4Mat = (aa ./ (1 + temp2Mat)) .* temp4Base;
+        temp4Mat = (regTerm ./ (1 + temp2Mat)) .* temp4Base;
 
         Uii = temp1Mat ./ (1 + temp2Mat) + (1 - temp4Mat) ./ temp3Mat;
         Uii = max(Uii, eps);
@@ -85,7 +96,7 @@ for iteration = 1:100
         penalty = zeros(C,N);
         for jj = 1:P
             if jj ~= ii
-                penalty = penalty + aa .* (U{ii} - U{jj}).^2;
+                penalty = penalty + regTerm .* (U{ii} - U{jj}).^2;
             end
         end
 

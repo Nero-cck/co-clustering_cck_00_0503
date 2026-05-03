@@ -1,27 +1,32 @@
 tic
-%½«ĞèÒªµ÷ÓÃµÄÎÄ¼şÌí¼Óµ½Â·¾¶
+% MATLAB uses lowercase logical literals.
+% Define aliases so accidental Python-style True/False won't break runs.
+True = true; %#ok<NASGU>
+False = false; %#ok<NASGU>
+
+%å°†éœ€è¦è°ƒç”¨çš„æ–‡ä»¶æ·»åŠ åˆ°è·¯å¾„
  addpath(genpath('co-clustering_cck_file')); 
  addpath(genpath('cosfire')); 
  addpath(genpath('phasecongruency_file')); 
  addpath(genpath('result_file')); 
 
 for i=1:1
-%% ÌáÈ¡Í¼Ïñ
+%% æå–å›¾åƒ
 disp(['DRIVE test',num2str(i,'%02d')]);
 img0 = imread(['DRIVE\test\images\',num2str(i,'%02d'),'_test.tif']);
 mask = imread(['DRIVE\test\mask\',num2str(i,'%02d'),'_test_mask.gif']);
 man = imread(['DRIVE\test\2nd_manual\',num2str(i,'%02d'),'_manual2.gif']);
 
-% È·±£ man ÊÇ»Ò¶ÈÍ¼Ïñ
+% ç¡®ä¿ man æ˜¯ç°åº¦å›¾åƒ
 if size(man,3) == 3
     man = rgb2gray(man);
 end
 
-%% Ô¤´¦Àí
+%% é¢„å¤„ç†
 [img_pre,mask] = preProcessing(img0,mask);
 % img_pre(mask_pre == 0) =0;
 
-%% ÌØÕ÷ÌáÈ¡
+%% ç‰¹å¾æå–
 
 %% B-cosfire
 RGBimg=img0;
@@ -35,7 +40,7 @@ respimage1=reshape(respimage,1,n);
 % figure,
 % imshow(respimage,[]);title('Bcosfier');
 
-%% ÏàÎ»Ò»ÖÂĞÔ
+%% ç›¸ä½ä¸€è‡´æ€§
 % img_fake = fakepad(img_pre,mask_pre);
 [M, ~ , ~ , ~ , ~, ~]=phasecong(img_pre);
 M(mask==0)=0;
@@ -44,7 +49,7 @@ M=normalize(M,mask);
 n=r.*c;
 M1=reshape(M,1,n);
 % figure,
-% imshow(M);title('ÏàÎ»Ò»ÖÂĞÔ');
+% imshow(M);title('ç›¸ä½ä¸€è‡´æ€§');
 
 % N=5;
 % [m,n] = size(img_pre);
@@ -53,7 +58,20 @@ M1=reshape(M,1,n);
 % for k = 1:1:m
 %     for j = 1:1:n
 %         if  ( k < mm ) && ( j < nn  ) && ( k > (N-1)/2 ) && ( j > (N-1)/2 )           
-%             Block1 = respimage(k-(N-1)/2:k+(N-1)/2,j-(N-1)/2:j+(N-1)/2);%ĞèÒª¶ÔBlock´¦ÀíµÄÏÂÃæ¿ÉÒÔ²Ù×÷
+params = struct();
+% Baseline fixed point from sweep
+params.lambda_cont = 0.12;
+params.lambda_branch = 0.02;
+% Optional image-adaptive parameter generation
+params.use_auto_lambda = false;
+if params.use_auto_lambda
+    [params.lambda_cont, params.lambda_branch, stats] = generate_cocluster_lambdas(img_pre, respimage, M, mask);
+    disp(['auto lambda | lc=', num2str(params.lambda_cont, '%.4f'), ...
+          ' lb=', num2str(params.lambda_branch, '%.4f'), ...
+          ' | C=', num2str(stats.C, '%.4f'), ' N=', num2str(stats.N, '%.4f'), ...
+          ' V=', num2str(stats.V, '%.4f'), ' B=', num2str(stats.B, '%.4f')]);
+end
+out_img = final(img_pre,features,cluster_n ,respimage,M, params);
 %             Block2 = M(k-(N-1)/2:k+(N-1)/2,j-(N-1)/2:j+(N-1)/2);
 %             a(k,j)=mean(mean(corr(Block1,Block2)));
 %             if a(k,j)<0
@@ -71,23 +89,23 @@ M1=reshape(M,1,n);
 
 features=[respimage1;M1]';
 
- %% ¾ÛÀà
- %ÌØÕ÷ÈÚºÏ
+ %% èšç±»
+ %ç‰¹å¾èåˆ
 features=double(features);
 cluster_n =2;
 out_img = final(img_pre,features,cluster_n ,respimage,M);
  
-%% ºó´¦Àí
+%% åå¤„ç†
 bw2_img = renovesmallarea(out_img,20,4);
 bw2_img(mask==0)=0;
 figure,
 subplot(121);imshow(bw2_img);
-subplot(122);imshow(man, []);  % Ô­À´ÊÇ imshow(man);
+subplot(122);imshow(man, []);  % åŸæ¥æ˜¯ imshow(man);
 
 
-%% ĞÔÄÜ²âÊÔ
+%% æ€§èƒ½æµ‹è¯•
 
-%% ĞÔÄÜÆÀ¹À
+%% æ€§èƒ½è¯„ä¼°
 man_eval = man;
 man_eval(man_eval==255) = 1;
 mask_eval = mask;
@@ -97,14 +115,14 @@ end
 toc
 save('result_file\Drive\Drive1\performance.mat','acc','sn','sp');
 %%ii=3;
-disp(['Æ½¾ù×¼È·¶È£º',num2str(acc(1))]);
-disp(['Æ½¾ùÁéÃô¶È£º',num2str(sn(1))]);
-disp(['Æ½¾ùÌØÒìĞÔ£º',num2str(sp(1))]);
-disp(['Æ½¾ùF1¶ÈÁ¿£º',num2str(F1(1))]);
-disp(['Æ½¾ùMCC£º',num2str(MCC(1))]);
-disp(['Æ½¾ù×¼È·¶È£º',num2str(mean(acc))]);
-disp(['Æ½¾ùÁéÃô¶È£º',num2str(mean(sn))]);
-disp(['Æ½¾ùÌØÒìĞÔ£º',num2str(mean(sp))]);
-disp(['Æ½¾ùF1¶ÈÁ¿£º',num2str(mean(F1))]);
-disp(['Æ½¾ùMCC£º',num2str(mean(MCC))]);
+disp(['å¹³å‡å‡†ç¡®åº¦ï¼š',num2str(acc(1))]);
+disp(['å¹³å‡çµæ•åº¦ï¼š',num2str(sn(1))]);
+disp(['å¹³å‡ç‰¹å¼‚æ€§ï¼š',num2str(sp(1))]);
+disp(['å¹³å‡F1åº¦é‡ï¼š',num2str(F1(1))]);
+disp(['å¹³å‡MCCï¼š',num2str(MCC(1))]);
+disp(['å¹³å‡å‡†ç¡®åº¦ï¼š',num2str(mean(acc))]);
+disp(['å¹³å‡çµæ•åº¦ï¼š',num2str(mean(sn))]);
+disp(['å¹³å‡ç‰¹å¼‚æ€§ï¼š',num2str(mean(sp))]);
+disp(['å¹³å‡F1åº¦é‡ï¼š',num2str(mean(F1))]);
+disp(['å¹³å‡MCCï¼š',num2str(mean(MCC))]);
 

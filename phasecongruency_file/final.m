@@ -1,7 +1,10 @@
-function [ out_img ] = final(img, features,cluster_n ,respimage,M)
+function [ out_img ] = final(img, features,cluster_n ,respimage,M, params)
 %[ out_img ] = final( features )
-%featuersÊÇÌØÕ÷ÏòÁ¿×é
-%%cfcmºÍfcm¾ÛÀà
+     if nargin < 6
+    params = struct();
+end
+[U1,U2] = CFCMcck(features, cluster_n, 2 ,respimage,M, params);
+%%cfcmå’Œfcmèšç±»
      [U1,U2] = CFCMcck(features, cluster_n, 2 ,respimage,M);
     % [~, U, ~] =fcm(features, cluster_n);
 [R,C]=size(img);
@@ -90,7 +93,7 @@ end
 
 
 out_img =out_img';
-% figure,imshow(out_img );title('FCM½á¹ûÍ¼');
+% figure,imshow(out_img );title('FCMç»“æœå›¾');
 
 
 end
