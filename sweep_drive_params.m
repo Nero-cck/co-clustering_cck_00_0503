@@ -44,6 +44,14 @@ for lc = lambda_cont_list
         else
             vesselMask = reshape(U(2,:)>U(1,:), size(respimage));
         end
+
+        % polarity self-check (same rule as final.m)
+        fgScore = mean(prior(vesselMask));
+        bgScore = mean(prior(~vesselMask));
+        if fgScore < bgScore
+            vesselMask = ~vesselMask;
+        end
+
         out_img = uint8(vesselMask) * 255;
         bw2_img = renovesmallarea(out_img,20,4);
         bw2_img(mask==0)=0;
