@@ -1,4 +1,9 @@
 tic
+% MATLAB uses lowercase logical literals.
+% Define aliases so accidental Python-style True/False won't break runs.
+True = true; %#ok<NASGU>
+False = false; %#ok<NASGU>
+
 %将需要调用的文件添加到路径
  addpath(genpath('co-clustering_cck_file')); 
  addpath(genpath('cosfire')); 
