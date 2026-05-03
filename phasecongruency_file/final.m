@@ -1,7 +1,7 @@
 function [ out_img ] = final(img, features,cluster_n ,respimage,M)
 %[ out_img ] = final( features )
-%featuersÊÇÌØÕ÷ÏòÁ¿×é
-%%cfcmºÍfcm¾ÛÀà
+%featuersæ˜¯ç‰¹å¾å‘é‡ç»„
+%%cfcmå’Œfcmèšç±»
      [U1,U2] = CFCMcck(features, cluster_n, 2 ,respimage,M);
     % [~, U, ~] =fcm(features, cluster_n);
 [R,C]=size(img);
@@ -47,14 +47,20 @@ function [ out_img ] = final(img, features,cluster_n ,respimage,M)
 %  
 U = sqrt(U1.*U2);
 
-  count=1;
-if(U(1,584)>U(2,584))
+% Adaptive vessel cluster selection instead of fixed pixel anchor.
+prior = mat2gray(double(respimage)) * 0.6 + mat2gray(double(M)) * 0.4;
+priorVec = prior(:);
+vesselScore = U * priorVec;
+[~, vesselCls] = max(vesselScore);
+
+count=1;
+if vesselCls == 1
+    a=255;
+    b=0;
+else
     a=0;
     b=255;
- else
-     a=255;                                                                 
-    b=0;
- end
+end
 for i=1:C
     for j=1:R
        
@@ -90,7 +96,7 @@ end
 
 
 out_img =out_img';
-% figure,imshow(out_img );title('FCM½á¹ûÍ¼');
+% figure,imshow(out_img );title('FCMç»“æžœå›¾');
 
 
 end

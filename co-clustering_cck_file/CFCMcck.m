@@ -19,7 +19,6 @@ for i = 1:P
     [V{i},U{i},~] = fcm(X{i},C);
 end
 
-% Align cluster order among subspaces.
 for a = 1:P-1
     for i = 1:C
         D = zeros(1,C);
@@ -34,21 +33,23 @@ for a = 1:P-1
     V{a+1} = V{P+1};
 end
 
-% ===== Structural-prior terms for clustering objective =====
-% Prior map emphasizes thin centerlines and potential bifurcation zones.
+% Structural priors prepared once.
 priorMap = mat2gray(double(respimage)) * 0.6 + mat2gray(double(M)) * 0.4;
 [r,c] = size(priorMap);
 priorMap = imgaussfilt(priorMap, 0.8);
+priorVec = priorMap(:)';
 
-% skeleton/branch saliency used as adaptive regularization weights.
 skel = bwmorph(priorMap > graythresh(priorMap), 'skel', Inf);
 branch = bwmorph(skel, 'branchpoints');
-structWeight = 0.5 + priorMap + 0.8 * imdilate(branch, strel('disk',1,0));
-structWeight = structWeight(:)';
+branchW = imgaussfilt(double(branch), 1.0);
+branchW = branchW ./ max(max(branchW), eps);
+branchW = branchW(:)';
 
-% Hyperparameters: continuity + branch consistency strength.
-lambda_cont = 0.20;
-lambda_branch = 0.12;
+structWeight = 0.15 + 0.85 * priorVec;
+
+% gentler regularization than previous version
+lambda_cont = 0.08;
+lambda_branch = 0.05;
 
 SSIGMA = 0;
 for iteration = 1:100
@@ -67,7 +68,6 @@ for iteration = 1:100
             aa = G1;
         end
 
-        % Aggregate memberships from other subspaces.
         otherU = zeros(C,N);
         for jj = 1:P
             if jj ~= ii
@@ -78,7 +78,6 @@ for iteration = 1:100
         temp2Mat = (P - 1) * aa;
         temp1Mat = aa .* otherU;
 
-        % Distance matrix: C x N.
         Xii = X{ii}';
         Vii = V{ii};
         dist2 = zeros(C,N);
@@ -91,33 +90,28 @@ for iteration = 1:100
 
         temp4Base = sum(otherU,1);
         temp4Mat = (aa ./ (1 + temp2Mat)) .* temp4Base;
-
         Uii = temp1Mat ./ (1 + temp2Mat) + (1 - temp4Mat) ./ temp3Mat;
 
-        % ===== structural prior in membership update =====
+        % continuity prior: pull toward local average, not unconditional boost
         Umap = reshape(Uii', r, c, C);
         priorSmooth = zeros(C, N);
         for ci = 1:C
             localAvg = imfilter(Umap(:,:,ci), fspecial('gaussian', [5 5], 1.0), 'replicate');
             priorSmooth(ci,:) = localAvg(:)';
         end
-        % continuity prior: favor local smoothness on strong structures
-        Uii = Uii + lambda_cont * (ones(C,1) * structWeight) .* priorSmooth;
+        Uii = Uii + lambda_cont * (ones(C,1) * structWeight) .* (priorSmooth - Uii);
 
-        % bifurcation prior: prevent branch breakup by boosting dominant class locally
-        branchW = (imgaussfilt(double(branch), 1.0) > 0);
-        branchW = branchW(:)';
-        [~,maxCls] = max(priorSmooth,[],1);
+        % branch prior: only reinforce vessel-like cluster
+        vesselScore = Uii * priorVec';
+        [~,vesselCls] = max(vesselScore);
         branchBoost = zeros(C,N);
-        idx = sub2ind([C,N], maxCls, 1:N);
-        branchBoost(idx) = branchW;
+        branchBoost(vesselCls,:) = branchW;
         Uii = Uii + lambda_branch * branchBoost;
 
         Uii = max(Uii, eps);
         Uii = Uii ./ max(sum(Uii,1), eps);
         U{ii} = Uii;
 
-        % Update cluster centers.
         penalty = zeros(C,N);
         for jj = 1:P
             if jj ~= ii
