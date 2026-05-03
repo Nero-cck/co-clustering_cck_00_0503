@@ -34,6 +34,22 @@ for a = 1:P-1
     V{a+1} = V{P+1};
 end
 
+% ===== Structural-prior terms for clustering objective =====
+% Prior map emphasizes thin centerlines and potential bifurcation zones.
+priorMap = mat2gray(double(respimage)) * 0.6 + mat2gray(double(M)) * 0.4;
+[r,c] = size(priorMap);
+priorMap = imgaussfilt(priorMap, 0.8);
+
+% skeleton/branch saliency used as adaptive regularization weights.
+skel = bwmorph(priorMap > graythresh(priorMap), 'skel', Inf);
+branch = bwmorph(skel, 'branchpoints');
+structWeight = 0.5 + priorMap + 0.8 * imdilate(branch, strel('disk',1,0));
+structWeight = structWeight(:)';
+
+% Hyperparameters: continuity + branch consistency strength.
+lambda_cont = 0.20;
+lambda_branch = 0.12;
+
 SSIGMA = 0;
 for iteration = 1:100
     I = respimage;
@@ -77,6 +93,26 @@ for iteration = 1:100
         temp4Mat = (aa ./ (1 + temp2Mat)) .* temp4Base;
 
         Uii = temp1Mat ./ (1 + temp2Mat) + (1 - temp4Mat) ./ temp3Mat;
+
+        % ===== structural prior in membership update =====
+        Umap = reshape(Uii', r, c, C);
+        priorSmooth = zeros(C, N);
+        for ci = 1:C
+            localAvg = imfilter(Umap(:,:,ci), fspecial('gaussian', [5 5], 1.0), 'replicate');
+            priorSmooth(ci,:) = localAvg(:)';
+        end
+        % continuity prior: favor local smoothness on strong structures
+        Uii = Uii + lambda_cont * (ones(C,1) * structWeight) .* priorSmooth;
+
+        % bifurcation prior: prevent branch breakup by boosting dominant class locally
+        branchW = (imgaussfilt(double(branch), 1.0) > 0);
+        branchW = branchW(:)';
+        [~,maxCls] = max(priorSmooth,[],1);
+        branchBoost = zeros(C,N);
+        idx = sub2ind([C,N], maxCls, 1:N);
+        branchBoost(idx) = branchW;
+        Uii = Uii + lambda_branch * branchBoost;
+
         Uii = max(Uii, eps);
         Uii = Uii ./ max(sum(Uii,1), eps);
         U{ii} = Uii;
